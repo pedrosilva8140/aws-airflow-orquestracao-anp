@@ -23,6 +23,8 @@ class S3Falso:
         self.objetos: dict[tuple[str, str], bytes] = {}
         self.modificados: dict[tuple[str, str], datetime] = {}
         self.negados: set[str] = set()
+        self.tamanho_pagina = 1000
+        self.listagens = 0
 
     def gravar(self, chave: str, corpo: bytes, quando: datetime, bucket: str = BUCKET) -> None:
         """Prepara um objeto com `LastModified` escolhido pelo teste."""
@@ -57,6 +59,27 @@ class S3Falso:
             "Body": io.BytesIO(self.objetos[(Bucket, Key)]),
             "LastModified": self.modificados[(Bucket, Key)],
         }
+
+    def list_objects_v2(
+        self, Bucket: str, Prefix: str = "", ContinuationToken: str | None = None, **_: object
+    ) -> dict:
+        """Paginação como a da AWS: no máximo `tamanho_pagina` itens por chamada."""
+        self.listagens += 1
+        chaves = sorted(c for b, c in self.objetos if b == Bucket and c.startswith(Prefix))
+        inicio = int(ContinuationToken or 0)
+        fim = inicio + self.tamanho_pagina
+        resposta: dict = {
+            "KeyCount": len(chaves[inicio:fim]),
+            "IsTruncated": fim < len(chaves),
+        }
+        if chaves[inicio:fim]:
+            resposta["Contents"] = [
+                {"Key": c, "LastModified": self.modificados[(Bucket, c)]}
+                for c in chaves[inicio:fim]
+            ]
+        if resposta["IsTruncated"]:
+            resposta["NextContinuationToken"] = str(fim)
+        return resposta
 
     def chaves(self) -> list[str]:
         return sorted(chave for _, chave in self.objetos)
