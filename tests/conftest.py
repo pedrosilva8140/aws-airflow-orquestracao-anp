@@ -1,3 +1,4 @@
+import io
 from datetime import UTC, datetime
 from typing import BinaryIO
 
@@ -21,16 +22,39 @@ class S3Falso:
         self.agora = agora or datetime(2026, 11, 15, 12, 0, tzinfo=UTC)
         self.objetos: dict[tuple[str, str], bytes] = {}
         self.modificados: dict[tuple[str, str], datetime] = {}
+        self.negados: set[str] = set()
+
+    def gravar(self, chave: str, corpo: bytes, quando: datetime, bucket: str = BUCKET) -> None:
+        """Prepara um objeto com `LastModified` escolhido pelo teste."""
+        self.objetos[(bucket, chave)] = corpo
+        self.modificados[(bucket, chave)] = quando
+
+    def _conferir_acesso(self, Key: str, operacao: str) -> None:
+        if Key in self.negados:
+            raise erro_aws("403", operacao)
 
     def upload_fileobj(self, Fileobj: BinaryIO, Bucket: str, Key: str, **_: object) -> None:
-        self.objetos[(Bucket, Key)] = Fileobj.read()
-        self.modificados[(Bucket, Key)] = self.agora
+        self.gravar(Key, Fileobj.read(), self.agora, Bucket)
+
+    def put_object(self, Bucket: str, Key: str, Body: bytes, **_: object) -> dict:
+        self.gravar(Key, Body, self.agora, Bucket)
+        return {}
 
     def head_object(self, Bucket: str, Key: str) -> dict:
+        self._conferir_acesso(Key, "HeadObject")
         if (Bucket, Key) not in self.objetos:
             raise erro_aws("404", "HeadObject")
         return {
             "ContentLength": len(self.objetos[(Bucket, Key)]),
+            "LastModified": self.modificados[(Bucket, Key)],
+        }
+
+    def get_object(self, Bucket: str, Key: str) -> dict:
+        self._conferir_acesso(Key, "GetObject")
+        if (Bucket, Key) not in self.objetos:
+            raise erro_aws("NoSuchKey", "GetObject")
+        return {
+            "Body": io.BytesIO(self.objetos[(Bucket, Key)]),
             "LastModified": self.modificados[(Bucket, Key)],
         }
 
