@@ -2,6 +2,7 @@ import codecs
 from datetime import UTC, datetime
 
 import pytest
+import requests
 from conftest import BUCKET
 
 from anp.envio import ArquivoInvalido, chave_entrada, enviar, validar_csv_basico
@@ -30,8 +31,9 @@ def csv_anp(tamanho: int, bom: bool = False) -> bytes:
 class RespostaFalsa:
     """Imita o `requests.Response` usado com `stream=True` dentro de `with`."""
 
-    def __init__(self, conteudo: bytes) -> None:
+    def __init__(self, conteudo: bytes, status: int = 200) -> None:
         self.conteudo = conteudo
+        self.status = status
 
     def __enter__(self) -> "RespostaFalsa":
         return self
@@ -40,18 +42,19 @@ class RespostaFalsa:
         return None
 
     def raise_for_status(self) -> None:
-        return None
+        if self.status >= 400:
+            raise requests.HTTPError(f"{self.status} Client Error")
 
     def iter_content(self, chunk_size: int = 1) -> list[bytes]:
         return [self.conteudo[i : i + chunk_size] for i in range(0, len(self.conteudo), chunk_size)]
 
 
-def baixar_falso(conteudo: bytes):
+def baixar_falso(conteudo: bytes, status: int = 200):
     chamadas: list[dict] = []
 
     def baixar(url: str, **kwargs: object) -> RespostaFalsa:
         chamadas.append({"url": url, **kwargs})
-        return RespostaFalsa(conteudo)
+        return RespostaFalsa(conteudo, status)
 
     baixar.chamadas = chamadas
     return baixar
@@ -92,4 +95,11 @@ def test_enviar_sobe_e_retorna_last_modified(s3):
 def test_enviar_nao_sobe_se_invalido(s3):
     with pytest.raises(ArquivoInvalido):
         enviar(s3, BUCKET, URL, chave_entrada(2026, 10), baixar=baixar_falso(HTML_ERRO))
+    assert s3.chaves() == []
+
+
+def test_enviar_erro_http_nao_sobe(s3):
+    baixar = baixar_falso(HTML_ERRO, status=404)
+    with pytest.raises(requests.HTTPError):
+        enviar(s3, BUCKET, URL, chave_entrada(2026, 10), baixar=baixar)
     assert s3.chaves() == []
