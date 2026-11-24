@@ -57,7 +57,7 @@ O P4 é a camada de orquestração sobre o que já existe. O P2 reage a arquivos
 | A. Orquestrar o ecossistema (ANP -> P2 -> qualidade -> catálogo/Athena) + backfill | Mais peças móveis e dependência do P2; em troca, os sinais de sênior surgem do problema real e conta uma história de evolução | **Escolhida pelo Pedro** |
 | B. Pipeline novo e independente dentro do Airflow | Mais simples; tende a parecer "mais um pipeline", com sinais de sênior forçados | Descartada |
 
-**Onde rodar o Airflow** (escolha técnica do Claude, vetável)
+**Onde rodar o Airflow** (escolha técnica, vetável)
 | Abordagem | Trade-off | Decisão |
 |---|---|---|
 | EC2 + Docker Compose (LocalExecutor + Postgres) | Barato, controle total, mostra infra; operação manual | **Escolhida** |
@@ -161,6 +161,6 @@ O P4 é a camada de orquestração sobre o que já existe. O P2 reage a arquivos
 
 **Decidido pelo Pedro:** abordagem A; máquina ligada só nas sessões, com desligamento automático e backfill como prova do agendamento; foco em evidência no README.
 
-**Escolhas do Claude (vetáveis):** EC2 m7i-flex.large + Docker Compose + LocalExecutor + Postgres; Airflow 3.x; SSM sem portas abertas; desligamento às 23:00; reaproveitar o SNS do P2 para alertas; deploy dos DAGs via `git pull` disparado por SSM; P2 implantado a partir do próprio repositório (não como módulo); nome do repositório `aws-airflow-orquestracao-anp`; dia 15 como dia de agendamento.
+**Escolhas técnicas (vetáveis):** EC2 m7i-flex.large + Docker Compose + LocalExecutor + Postgres; Airflow 3.x; SSM sem portas abertas; desligamento às 23:00; reaproveitar o SNS do P2 para alertas; deploy dos DAGs via `git pull` disparado por SSM; P2 implantado a partir do próprio repositório (não como módulo); nome do repositório `aws-airflow-orquestracao-anp`; dia 15 como dia de agendamento.
 
 **Para quem implementa decidir:** versão exata do Airflow 3.x e do Postgres; faixas exatas das checagens de qualidade (calibrar com os dados reais); como provocar a falha de qualidade para a demonstração; ajustes no compose oficial para caber bem em 8 GB.

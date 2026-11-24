@@ -1,6 +1,6 @@
 # P4 - Orquestração com Airflow na AWS: plano de implementação
 
-> **Como executar:** uma tarefa por vez no Claude Code do VS Code, seguindo o `CLAUDE.md`. Ao fim de cada tarefa: `ruff check .`, `pytest`, commit, marcar `[x]` e PARAR até o "ok" do Pedro. Os passos usam caixas `- [ ]` para acompanhamento.
+> **Como executar:** uma tarefa por vez, seguindo as regras do projeto. Ao fim de cada tarefa: `ruff check .`, `pytest`, commit, marcar `[x]` e PARAR até o "ok" do Pedro. Os passos usam caixas `- [ ]` para acompanhamento.
 
 **Objetivo:** um DAG mensal no Airflow (EC2) que alimenta o P2 com o arquivo da ANP, espera o resultado, aplica portões de qualidade, publica a partição no Glue/Athena e reprocessa jan/2025 a out/2026.
 
@@ -13,7 +13,7 @@
 ## Restrições globais
 
 - Repositório: `aws-airflow-orquestracao-anp`, em `C:\Users\pedro\projetos\`. Região `us-east-2`.
-- Commits só como Pedro Henrique; Conventional Commits em português; nenhuma menção a Claude/IA. `CLAUDE.md` e `.claude/` no `.gitignore`.
+- Commits só como Pedro Henrique; Conventional Commits em português; nenhuma menção a ferramentas de assistência. O arquivo local de regras do projeto fica fora do versionamento.
 - Nunca `git push`, `terraform apply` ou `terraform destroy` sem autorização explícita. Sempre `plan -out=tfplan` + `apply tfplan`.
 - **O Airflow não roda no Windows.** Tudo que importa `airflow` só é testado no CI (Linux) ou na EC2. O pacote `dags/anp/` nunca importa `airflow`.
 - Instância: `m7i-flex.large`, Amazon Linux 2023 (AMI via parâmetro SSM `/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64`), disco gp3 30 GB, IMDSv2 obrigatório com `http_put_response_hop_limit = 2`, security group **sem regra de entrada**, porta 8080 publicada só em `127.0.0.1`.
@@ -68,7 +68,7 @@ aws-airflow-orquestracao-anp/
 
 ### Tarefa 1: Estrutura do repositório e descoberta da URL do mês
 
-**Arquivos:** criar a estrutura acima (pastas vazias com `.gitkeep`), `pyproject.toml` (ruff line-length 100, py312, `select = ["E","F","I","B","UP"]`; pytest `pythonpath = ["dags"]`), `requirements-dev.txt` (pytest, ruff, boto3, pyarrow, requests), `.gitignore` (padrão do P2, mais `docker/.env`), `docs/design.md`, `docs/plano-implementacao.md`, `CLAUDE.md` (regras do P2 + contexto do P4); `dags/anp/descoberta.py`; `tests/test_descoberta.py`; `tests/fixtures/pagina_anp.html`.
+**Arquivos:** criar a estrutura acima (pastas vazias com `.gitkeep`), `pyproject.toml` (ruff line-length 100, py312, `select = ["E","F","I","B","UP"]`; pytest `pythonpath = ["dags"]`), `requirements-dev.txt` (pytest, ruff, boto3, pyarrow, requests), `.gitignore` (padrão do P2, mais `docker/.env`), `docs/design.md`, `docs/plano-implementacao.md`, arquivo local de regras do projeto (regras do P2 + contexto do P4); `dags/anp/descoberta.py`; `tests/test_descoberta.py`; `tests/fixtures/pagina_anp.html`.
 
 **Interfaces (produz):**
 - `class MesNaoPublicado(Exception)`, `class MesAmbiguo(Exception)`
@@ -133,7 +133,7 @@ aws-airflow-orquestracao-anp/
 
 - [ ] **Passo 1: testes que falham** (tabelas montadas no teste): `test_aprova_tabela_boa`; `test_poucas_linhas`; `test_preco_fora_da_faixa` (um 0.5 e um 40.0 -> falha com os dois valores); `test_data_fora_do_mes`; `test_uf_faltando` (26 UFs); `test_produto_obrigatorio_faltando` (sem ETANOL); `test_linhas_minimas_sobrescrito` (`linhas_minimas=10_000_000` reprova uma tabela boa, usado na demonstração de falha).
 - [ ] **Passos 2-4:** rodar (FAIL), implementar, rodar (PASS).
-- [ ] **Passo 5: calibrar.** Rodar `checar` localmente sobre o Parquet real de out/2026 (gerado na Tarefa 0 ou baixado do P2). Esperado: lista vazia. Se não for, ajustar as faixas e registrar o motivo no `CLAUDE.md`.
+- [ ] **Passo 5: calibrar.** Rodar `checar` localmente sobre o Parquet real de out/2026 (gerado na Tarefa 0 ou baixado do P2). Esperado: lista vazia. Se não for, ajustar as faixas e registrar o motivo no arquivo local de regras do projeto.
 - [ ] **Passo 6: commit** `feat: adiciona portoes de qualidade do parquet`.
 
 ### Tarefa 5: Publicação no Athena e alertas
@@ -169,7 +169,7 @@ aws-airflow-orquestracao-anp/
 
 **Arquivos:** `docker/Dockerfile`, `docker/requirements.txt`, `docker/docker-compose.yml`, `docker/.env.example`.
 
-**Decisões:** imagem `apache/airflow:<3.x fixada>-python3.12` estendida com `requirements.txt` (boto3, pyarrow, requests), instalados com as constraints. Serviços: `postgres` (16, volume nomeado), `airflow-init` (migração + usuário admin), `api-server` (porta `127.0.0.1:8080:8080`), `scheduler` e `dag-processor`, todos com `restart: unless-stopped`; sem Celery, Redis ou triggerer. `dags/` montado como volume somente leitura. Executor `LocalExecutor`. A senha do admin vem do `.env` (preenchido pelo user_data a partir do SSM). O mecanismo de autenticação fica a critério da versão (SimpleAuthManager ou FAB), documentado no `CLAUDE.md`. `.env.example` com as variáveis `ANP_*` das restrições globais e valores fictícios.
+**Decisões:** imagem `apache/airflow:<3.x fixada>-python3.12` estendida com `requirements.txt` (boto3, pyarrow, requests), instalados com as constraints. Serviços: `postgres` (16, volume nomeado), `airflow-init` (migração + usuário admin), `api-server` (porta `127.0.0.1:8080:8080`), `scheduler` e `dag-processor`, todos com `restart: unless-stopped`; sem Celery, Redis ou triggerer. `dags/` montado como volume somente leitura. Executor `LocalExecutor`. A senha do admin vem do `.env` (preenchido pelo user_data a partir do SSM). O mecanismo de autenticação fica a critério da versão (SimpleAuthManager ou FAB), documentado no arquivo local de regras do projeto. `.env.example` com as variáveis `ANP_*` das restrições globais e valores fictícios.
 
 - [ ] **Passo 1:** escrever os arquivos.
 - [ ] **Passo 2: validar** com o job `compose` do CI (`docker compose config` sem erro). O teste real é na Tarefa 8.
@@ -203,7 +203,7 @@ Scripts: `abrir_airflow.ps1` (liga a instância se estiver parada, espera ela fi
 - [ ] Rodar o backfill de 2025-02-15 a 2026-11-15 com no máximo 1 execução ativa (comando de backfill da versão fixada; conferir a sintaxe na documentação dela).
 - [ ] Acompanhar. Para cada falha: ler o motivo, decidir com o Pedro se é um dado ruim real (fica registrado como evidência) ou um bug (corrigir com teste, commit `fix:`, rodar de novo só aquele mês).
 - [ ] Esperado: 22 execuções concluídas; `SELECT ano, mes, count(*) ... GROUP BY 1,2` no Athena com até 22 partições.
-- [ ] Registrar os números (tempo total, linhas por mês, falhas e motivos) no `CLAUDE.md`, para o README.
+- [ ] Registrar os números (tempo total, linhas por mês, falhas e motivos) no arquivo local de regras do projeto, para o README.
 
 ### Tarefa 11: Demonstrações de falha (evidência)
 
@@ -215,7 +215,7 @@ Scripts: `abrir_airflow.ps1` (liga a instância se estiver parada, espera ela fi
 
 - [ ] `docs/runbook.md`: mês não publicado; arquivo rejeitado pelo P2; qualidade reprovada; evento na DLQ do P2; instância desligada no meio da execução; disco cheio; senha do admin (como ler do SSM).
 - [ ] README no padrão do P2 (topo com stack e destaques, Mermaid, decisões, evidências, problemas e lições, limitações, como rodar, deploy/destroy, outros projetos), incluindo a nota de infraestrutura destruída.
-- [ ] Commit `docs: adiciona readme e runbook`; conferência pré-push (autores, busca por Co-Authored/Claude/Anthropic, `git ls-files`); push com autorização; CI verde.
+- [ ] Commit `docs: adiciona readme e runbook`; conferência pré-push (autores, busca por trailers de coautoria e menções a ferramentas de assistência, `git ls-files`); push com autorização; CI verde.
 
 ### Tarefa 13: Destroy e conferência
 
