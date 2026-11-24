@@ -42,3 +42,21 @@ jobs:
 
       - name: Testes
         run: pytest -v
+
+  compose:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docker
+    steps:
+      - uses: actions/checkout@v5
+
+      # O .env.example precisa bastar para o compose: prova que ele está completo.
+      - name: Preparar .env de exemplo
+        run: cp .env.example .env
+
+      - name: Validar o compose
+        run: docker compose config --quiet
+
+      - name: Construir a imagem
+        run: docker compose build
