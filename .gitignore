@@ -16,7 +16,7 @@ tfplan
 infra/tfplan
 
 # Airflow (segredos locais)
-airflow/.env
+docker/.env
 
 # Dados locais
 dados/

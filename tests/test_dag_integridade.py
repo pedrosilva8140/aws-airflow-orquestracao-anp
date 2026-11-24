@@ -2,10 +2,6 @@
 
 No Windows o Airflow não roda: o módulo é pulado. Com `EXIGIR_AIRFLOW=1` (definido no
 CI), a ausência do Airflow é erro, para os testes nunca serem pulados em silêncio.
-
-A checagem usa `airflow.sdk`, e não só `airflow`: a pasta `airflow/` da raiz do
-repositório (Dockerfile e compose) é importável como pacote de namespace quando o
-diretório atual está no `sys.path`, e enganaria um `importorskip("airflow")`.
 """
 
 import os
@@ -14,9 +10,9 @@ from pathlib import Path
 import pytest
 
 if os.environ.get("EXIGIR_AIRFLOW") == "1":
-    import airflow.sdk  # noqa: F401
+    import airflow  # noqa: F401
 else:
-    pytest.importorskip("airflow.sdk")
+    pytest.importorskip("airflow")
 
 from airflow.dag_processing.dagbag import DagBag  # noqa: E402
 

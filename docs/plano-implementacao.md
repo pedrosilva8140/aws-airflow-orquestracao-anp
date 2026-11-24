@@ -40,7 +40,7 @@
 ```
 aws-airflow-orquestracao-anp/
   .github/workflows/ci.yml
-  airflow/  Dockerfile  docker-compose.yml  requirements.txt  .env.example
+  docker/   Dockerfile  docker-compose.yml  requirements.txt  .env.example
   dags/
     anp_precos_mensal.py          # só o DAG
     anp/__init__.py
@@ -68,7 +68,7 @@ aws-airflow-orquestracao-anp/
 
 ### Tarefa 1: Estrutura do repositório e descoberta da URL do mês
 
-**Arquivos:** criar a estrutura acima (pastas vazias com `.gitkeep`), `pyproject.toml` (ruff line-length 100, py312, `select = ["E","F","I","B","UP"]`; pytest `pythonpath = ["dags"]`), `requirements-dev.txt` (pytest, ruff, boto3, pyarrow, requests), `.gitignore` (padrão do P2, mais `airflow/.env`), `docs/design.md`, `docs/plano-implementacao.md`, `CLAUDE.md` (regras do P2 + contexto do P4); `dags/anp/descoberta.py`; `tests/test_descoberta.py`; `tests/fixtures/pagina_anp.html`.
+**Arquivos:** criar a estrutura acima (pastas vazias com `.gitkeep`), `pyproject.toml` (ruff line-length 100, py312, `select = ["E","F","I","B","UP"]`; pytest `pythonpath = ["dags"]`), `requirements-dev.txt` (pytest, ruff, boto3, pyarrow, requests), `.gitignore` (padrão do P2, mais `docker/.env`), `docs/design.md`, `docs/plano-implementacao.md`, `CLAUDE.md` (regras do P2 + contexto do P4); `dags/anp/descoberta.py`; `tests/test_descoberta.py`; `tests/fixtures/pagina_anp.html`.
 
 **Interfaces (produz):**
 - `class MesNaoPublicado(Exception)`, `class MesAmbiguo(Exception)`
@@ -162,12 +162,12 @@ aws-airflow-orquestracao-anp/
 - [ ] **Passo 1: testes que falham:** `test_calendario.py` com os dois casos acima. `test_dag_integridade.py` com `pytest.importorskip("airflow")`: DagBag sem erros de import; o DAG existe; 5 tarefas na ordem acima; `max_active_runs == 1`; `catchup is False`; retries == 3; schedule == `"0 9 15 * *"`.
 - [ ] **Passo 2: rodar** no Windows. Esperado: calendário FAIL; integridade SKIPPED (sem Airflow, o esperado).
 - [ ] **Passo 3:** implementar o calendário e o DAG.
-- [ ] **Passo 4: CI** com os jobs `python` (instala `requirements-dev.txt` + `apache-airflow==<versão fixada>` com o arquivo de constraints oficial para Python 3.12; ruff check, ruff format --check, pytest -v **sem skips de integridade**), `compose` (`docker compose -f airflow/docker-compose.yml config`, depois da Tarefa 7) e `terraform` (fmt -check, init -backend=false, validate, depois da Tarefa 8). `permissions: contents: read`, sem credenciais AWS, `hashicorp/setup-terraform@v4`.
+- [ ] **Passo 4: CI** com os jobs `python` (instala `requirements-dev.txt` + `apache-airflow==<versão fixada>` com o arquivo de constraints oficial para Python 3.12; ruff check, ruff format --check, pytest -v **sem skips de integridade**), `compose` (`docker compose -f docker/docker-compose.yml config`, depois da Tarefa 7) e `terraform` (fmt -check, init -backend=false, validate, depois da Tarefa 8). `permissions: contents: read`, sem credenciais AWS, `hashicorp/setup-terraform@v4`.
 - [ ] **Passo 5:** commit `feat: adiciona dag mensal da anp e ci`; push só com autorização; conferir o CI verde, com os testes de integridade rodando (e não pulados).
 
 ### Tarefa 7: O Airflow em containers
 
-**Arquivos:** `airflow/Dockerfile`, `airflow/requirements.txt`, `airflow/docker-compose.yml`, `airflow/.env.example`.
+**Arquivos:** `docker/Dockerfile`, `docker/requirements.txt`, `docker/docker-compose.yml`, `docker/.env.example`.
 
 **Decisões:** imagem `apache/airflow:<3.x fixada>-python3.12` estendida com `requirements.txt` (boto3, pyarrow, requests), instalados com as constraints. Serviços: `postgres` (16, volume nomeado), `airflow-init` (migração + usuário admin), `api-server` (porta `127.0.0.1:8080:8080`), `scheduler` e `dag-processor`, todos com `restart: unless-stopped`; sem Celery, Redis ou triggerer. `dags/` montado como volume somente leitura. Executor `LocalExecutor`. A senha do admin vem do `.env` (preenchido pelo user_data a partir do SSM). O mecanismo de autenticação fica a critério da versão (SimpleAuthManager ou FAB), documentado no `CLAUDE.md`. `.env.example` com as variáveis `ANP_*` das restrições globais e valores fictícios.
 
@@ -179,7 +179,7 @@ aws-airflow-orquestracao-anp/
 
 **Arquivos:** `infra/*.tf`, `infra/user_data.sh.tftpl`, `scripts/abrir_airflow.ps1`, `scripts/atualizar_dags.ps1`.
 
-**Decisões:** variáveis `bucket_p2` e `topico_alertas_arn_p2` (dos outputs do P2), `regiao = "us-east-2"`, `repo_url`. VPC e subnet padrão, IP público e nenhum ingresso. Role da instância: `AmazonSSMManagedInstanceCore`; S3 `PutObject` em `entrada/*`; `GetObject` em `processado/*` e `rejeitado/*`; `ListBucket` com prefixos `processado/` e `rejeitado/`; leitura e escrita em `athena-resultados/*`; Glue (`GetDatabase`, `GetTable`, `GetPartition*`, `BatchCreatePartition`, `CreatePartition`) restrito ao database/tabela; Athena (`StartQueryExecution`, `GetQueryExecution`) restrito ao workgroup; `sns:Publish` no tópico. `random_password` -> `aws_ssm_parameter` SecureString `/aws-airflow-orquestracao-anp/airflow-admin-senha`. Scheduler com role própria (`ec2:StopInstances` só nesta instância). `aws_glue_catalog_table` com as 15 colunas do Parquet do P2 (13 `string`, `data_coleta date`, `valor_venda` e `valor_compra double`), partições `ano` e `mes` string. `aws_athena_workgroup` com o limite de 100 MB e `force_destroy = true`. user_data: instala docker e o plugin compose, habilita o docker no boot, clona `repo_url` em `/opt/airflow-anp`, gera `airflow/.env` (variáveis `ANP_*` + senha lida do SSM) e roda `docker compose up -d --build`. Outputs: `instance_id`, `comando_port_forward`.
+**Decisões:** variáveis `bucket_p2` e `topico_alertas_arn_p2` (dos outputs do P2), `regiao = "us-east-2"`, `repo_url`. VPC e subnet padrão, IP público e nenhum ingresso. Role da instância: `AmazonSSMManagedInstanceCore`; S3 `PutObject` em `entrada/*`; `GetObject` em `processado/*` e `rejeitado/*`; `ListBucket` com prefixos `processado/` e `rejeitado/`; leitura e escrita em `athena-resultados/*`; Glue (`GetDatabase`, `GetTable`, `GetPartition*`, `BatchCreatePartition`, `CreatePartition`) restrito ao database/tabela; Athena (`StartQueryExecution`, `GetQueryExecution`) restrito ao workgroup; `sns:Publish` no tópico. `random_password` -> `aws_ssm_parameter` SecureString `/aws-airflow-orquestracao-anp/airflow-admin-senha`. Scheduler com role própria (`ec2:StopInstances` só nesta instância). `aws_glue_catalog_table` com as 15 colunas do Parquet do P2 (13 `string`, `data_coleta date`, `valor_venda` e `valor_compra double`), partições `ano` e `mes` string. `aws_athena_workgroup` com o limite de 100 MB e `force_destroy = true`. user_data: instala docker e o plugin compose, habilita o docker no boot, clona `repo_url` em `/opt/airflow-anp`, gera `docker/.env` (variáveis `ANP_*` + senha lida do SSM) e roda `docker compose up -d --build`. Outputs: `instance_id`, `comando_port_forward`.
 
 Scripts: `abrir_airflow.ps1` (liga a instância se estiver parada, espera ela ficar `running` e o SSM `Online`, e abre o port forwarding `AWS-StartPortForwardingSession` 8080 -> 8080). `atualizar_dags.ps1` (`aws ssm send-command` com `git pull` em `/opt/airflow-anp`).
 
