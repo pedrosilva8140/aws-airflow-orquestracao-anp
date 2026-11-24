@@ -37,5 +37,7 @@ locals {
 
   arn_bucket_p2      = "arn:aws:s3:::${var.bucket_p2}"
   prefixo_resultados = "athena-resultados/"
-  nome_parametro     = "/${var.projeto}/airflow-admin-senha"
+  # O SSM reserva nomes que começam com "aws" ou "ssm": o prefixo do projeto
+  # ("aws-airflow-...") não pode abrir o nome do parâmetro.
+  nome_parametro = "/airflow-orquestracao-anp/airflow-admin-senha"
 }
