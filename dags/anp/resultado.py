@@ -7,6 +7,8 @@ com `LastModified` a partir do upload (`desde`).
 """
 
 import json
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
@@ -14,6 +16,7 @@ from typing import Literal
 from botocore.exceptions import ClientError
 
 CODIGOS_AUSENTE = {"404", "NoSuchKey", "NotFound"}
+ESPERA_CONFIRMACAO_S = 10.0
 
 
 PREFIXO_PROCESSADO = "processado/"
@@ -104,3 +107,23 @@ def verificar_resultado(s3, bucket: str, ano: int, mes: int, desde: datetime) ->
         return Resultado("fora_do_mes", saidas=tuple(saidas))
 
     return Resultado("pendente")
+
+
+def verificar_com_confirmacao(
+    s3,
+    bucket: str,
+    ano: int,
+    mes: int,
+    desde: datetime,
+    espera_s: float = ESPERA_CONFIRMACAO_S,
+    dormir: Callable[[float], None] = time.sleep,
+) -> Resultado:
+    """Como `verificar_resultado`, mas um `fora_do_mes` só vale se persistir após `espera_s`.
+
+    Cobre o P2 gravando as partições uma por vez: a anterior já existe, a do mês ainda não.
+    """
+    resultado = verificar_resultado(s3, bucket, ano, mes, desde)
+    if resultado.status != "fora_do_mes":
+        return resultado
+    dormir(espera_s)
+    return verificar_resultado(s3, bucket, ano, mes, desde)

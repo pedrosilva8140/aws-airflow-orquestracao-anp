@@ -1,5 +1,5 @@
-pytest
-ruff
+pytest==9.2.0
+ruff==0.17.6
 boto3
 pyarrow
 requests

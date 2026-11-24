@@ -10,6 +10,7 @@ from anp.resultado import (
     chave_parquet,
     chave_rejeicao,
     listar_saidas,
+    verificar_com_confirmacao,
     verificar_resultado,
 )
 
@@ -136,3 +137,28 @@ def test_processado_mesmo_com_vazamento(s3):
     resultado = verificar_resultado(s3, BUCKET, 2026, 10, DESDE)
     assert resultado.status == "processado"
     assert resultado.chave == PARQUET
+
+
+def test_confirmacao_mantem_fora_do_mes(s3):
+    s3.gravar(VAZAMENTO_SETEMBRO, b"PAR1", DEPOIS)
+    esperas: list[float] = []
+    resultado = verificar_com_confirmacao(s3, BUCKET, 2026, 10, DESDE, dormir=esperas.append)
+    assert resultado == Resultado("fora_do_mes", None, (), (VAZAMENTO_SETEMBRO,))
+    assert esperas == [10.0]
+
+
+def test_confirmacao_fora_do_mes_transitorio_vira_processado(s3):
+    s3.gravar(VAZAMENTO_SETEMBRO, b"PAR1", DEPOIS)
+
+    def p2_termina_de_gravar(_: float) -> None:
+        s3.gravar(PARQUET, b"PAR1", DEPOIS)
+
+    resultado = verificar_com_confirmacao(s3, BUCKET, 2026, 10, DESDE, dormir=p2_termina_de_gravar)
+    assert resultado == Resultado("processado", PARQUET)
+
+
+def test_confirmacao_nao_espera_quando_pendente(s3):
+    esperas: list[float] = []
+    resultado = verificar_com_confirmacao(s3, BUCKET, 2026, 10, DESDE, dormir=esperas.append)
+    assert resultado == Resultado("pendente")
+    assert esperas == []
