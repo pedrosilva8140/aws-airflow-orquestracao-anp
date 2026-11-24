@@ -23,9 +23,11 @@ resource "aws_iam_role_policy_attachment" "ssm" {
 }
 
 data "aws_iam_policy_document" "airflow" {
+  # GetObject só para ler o que a própria role grava: o HeadObject (que devolve o
+  # LastModified do upload, usado pelo sensor) exige s3:GetObject; sem ele, dá 403.
   statement {
     sid       = "EnviarParaP2"
-    actions   = ["s3:PutObject"]
+    actions   = ["s3:PutObject", "s3:GetObject"]
     resources = ["${local.arn_bucket_p2}/entrada/*"]
   }
 
