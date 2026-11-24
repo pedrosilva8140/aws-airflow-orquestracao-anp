@@ -6,7 +6,8 @@ como dicionário e não importa `airflow`.
 
 import unicodedata
 
-LIMITE_ASSUNTO = 100
+# A documentação do SNS exige assunto com "menos de 100 caracteres".
+LIMITE_ASSUNTO = 99
 PREFIXO_ASSUNTO = "Falha no Airflow:"
 
 

@@ -15,9 +15,9 @@ class SNSFalso:
         return {"MessageId": "1"}
 
 
-def test_assunto_ate_100_caracteres():
+def test_assunto_menos_de_100_caracteres():
     assunto, mensagem = montar_alerta("d" * 80, "t" * 80, "2026-11-15T00:00:00+00:00", "erro")
-    assert len(assunto) <= 100
+    assert len(assunto) == 99
     assert assunto.startswith("Falha no Airflow:")
     assert "d" * 80 in mensagem and "t" * 80 in mensagem and "erro" in mensagem
 
