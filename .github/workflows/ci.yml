@@ -60,3 +60,25 @@ jobs:
 
       - name: Construir a imagem
         run: docker compose build
+
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.17.1"
+
+      - name: Formatação
+        run: terraform fmt -check -recursive
+
+      # Sem backend e sem credenciais AWS: só sintaxe, tipos e referências.
+      - name: Init
+        run: terraform init -backend=false -input=false
+
+      - name: Validate
+        run: terraform validate

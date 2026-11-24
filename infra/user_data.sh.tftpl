@@ -1,0 +1,61 @@
+#!/bin/bash
+# Primeira inicialização da EC2 do Airflow (cloud-init roda isto uma vez por instância).
+# Nos religamentos seguintes, o Docker sobe com o sistema e os containers voltam sozinhos
+# (restart: unless-stopped).
+#
+# Sem "set -x": os segredos gerados abaixo não podem ir para o log.
+set -euo pipefail
+exec > >(tee -a /var/log/user-data.log) 2>&1
+
+REPO_DIR=/opt/airflow-anp
+PLUGINS=/usr/local/lib/docker/cli-plugins
+
+echo "== Docker e git"
+dnf install -y docker git
+systemctl enable --now docker
+
+echo "== Plugins compose ${versao_compose} e buildx ${versao_buildx}"
+mkdir -p "$PLUGINS"
+curl -fsSL -o "$PLUGINS/docker-compose" \
+  "https://github.com/docker/compose/releases/download/v${versao_compose}/docker-compose-linux-x86_64"
+curl -fsSL -o "$PLUGINS/docker-buildx" \
+  "https://github.com/docker/buildx/releases/download/v${versao_buildx}/buildx-v${versao_buildx}.linux-amd64"
+chmod +x "$PLUGINS/docker-compose" "$PLUGINS/docker-buildx"
+docker compose version
+docker buildx version
+
+echo "== Repositório"
+if [ ! -d "$REPO_DIR/.git" ]; then
+  git clone "${repo_url}" "$REPO_DIR"
+fi
+
+echo "== docker/.env"
+ENV_FILE="$REPO_DIR/docker/.env"
+if [ ! -f "$ENV_FILE" ]; then
+  SENHA_ADMIN=$(aws ssm get-parameter --region "${regiao}" --name "${parametro_senha}" \
+    --with-decryption --query Parameter.Value --output text)
+  (
+    umask 077
+    cat > "$ENV_FILE" <<EOF
+AIRFLOW_UID=50000
+POSTGRES_PASSWORD=$(openssl rand -hex 32)
+AIRFLOW_FERNET_KEY=$(openssl rand -base64 32 | tr '+/' '-_')
+AIRFLOW_JWT_SECRET=$(openssl rand -hex 32)
+AIRFLOW_ADMIN_USUARIO=admin
+AIRFLOW_ADMIN_SENHA=$SENHA_ADMIN
+ANP_BUCKET=${bucket}
+ANP_TOPICO_ALERTAS_ARN=${topico_alertas_arn}
+ANP_GLUE_DATABASE=${glue_database}
+ANP_GLUE_TABELA=${glue_tabela}
+ANP_ATHENA_WORKGROUP=${athena_workgroup}
+AWS_DEFAULT_REGION=${regiao}
+EOF
+  )
+fi
+
+echo "== Subindo o Airflow"
+cd "$REPO_DIR/docker"
+docker compose up -d --build
+docker compose ps
+
+echo "== Fim do user_data"

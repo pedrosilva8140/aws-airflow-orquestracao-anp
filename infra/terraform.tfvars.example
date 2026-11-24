@@ -1,0 +1,5 @@
+# Copie para terraform.tfvars (nao versionado) com os outputs do P2:
+#   terraform -chdir=<repo do P2>/infra output bucket
+#   terraform -chdir=<repo do P2>/infra output topico_alertas_arn
+bucket_p2             = "pipeline-eventos-anp-000000000000"
+topico_alertas_arn_p2 = "arn:aws:sns:us-east-2:000000000000:pipeline-eventos-anp-alertas"

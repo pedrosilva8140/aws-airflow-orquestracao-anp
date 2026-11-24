@@ -1,0 +1,6 @@
+# Scripts que rodam no Linux (EC2/CI) precisam de LF, mesmo editados no Windows.
+*.sh text eol=lf
+*.tftpl text eol=lf
+docker/Dockerfile text eol=lf
+docker/*.yml text eol=lf
+docker/.env.example text eol=lf
